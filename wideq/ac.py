@@ -3,6 +3,8 @@
 import enum
 
 from .client import Device
+from .util import lookup_enum
+from .core import FailedRequestError
 
 
 class ACVSwingMode(enum.Enum):
@@ -247,17 +249,37 @@ class ACDevice(Device):
 
         return self._get_config('EnergyDesiredValue')
 
+    def get_outdoor_power(self):
+        """Get instant power usage in watts of the outdoor unit"""
+
+        value = self._get_config('OutTotalInstantPower')
+        return value['OutTotalInstantPower']
+
+    def get_power(self):
+        """Get the instant power usage in watts of the whole unit"""
+
+        value = self._get_config('InOutInstantPower')
+        return value['InOutInstantPower']
+
     def get_light(self):
         """Get a Boolean indicating whether the display light is on."""
 
-        value = self._get_control('DisplayControl')
-        return value == '0'  # Seems backwards, but isn't.
+        try:
+            value = self._get_control('DisplayControl')
+            return value == '0'  # Seems backwards, but isn't.
+        except FailedRequestError:
+            # Device does not support reporting display light status.
+            # Since it's probably not changeable the it must be on.
+            return True
 
     def get_volume(self):
         """Get the speaker volume level."""
 
-        value = self._get_control('SpkVolume')
-        return int(value)
+        try:
+            value = self._get_control('SpkVolume')
+            return int(value)
+        except FailedRequestError:
+            return 0  # Device does not support volume control.
 
     def poll(self):
         """Poll the device's current state.
@@ -317,26 +339,23 @@ class ACStatus(object):
     def temp_cfg_f(self):
         return self.ac.c2f[self.temp_cfg_c]
 
-    def lookup_enum(self, key):
-        return self.ac.model.enum_name(key, self.data[key])
-
     @property
     def mode(self):
-        return ACMode(self.lookup_enum('OpMode'))
+        return ACMode(lookup_enum('OpMode', self.data, self.ac))
 
     @property
     def fan_speed(self):
-        return ACFanSpeed(self.lookup_enum('WindStrength'))
+        return ACFanSpeed(lookup_enum('WindStrength', self.data, self.ac))
 
     @property
     def horz_swing(self):
-        return ACHSwingMode(self.lookup_enum('WDirHStep'))
+        return ACHSwingMode(lookup_enum('WDirHStep', self.data, self.ac))
 
     @property
     def vert_swing(self):
-        return ACVSwingMode(self.lookup_enum('WDirVStep'))
+        return ACVSwingMode(lookup_enum('WDirVStep', self.data, self.ac))
 
     @property
     def is_on(self):
-        op = ACOp(self.lookup_enum('Operation'))
+        op = ACOp(lookup_enum('Operation', self.data, self.ac))
         return op != ACOp.OFF

@@ -1,8 +1,12 @@
+#!/usr/bin/env python3
+
 import wideq
 import json
 import time
 import argparse
 import sys
+import re
+from typing import List
 
 STATE_FILE = 'wideq_state.json'
 
@@ -142,6 +146,8 @@ def ac_config(client, device_id):
     print(ac.get_filter_state())
     print(ac.get_mfilter_state())
     print(ac.get_energy_target())
+    print(ac.get_power(), " watts")
+    print(ac.get_outdoor_power(), " watts")
     print(ac.get_volume())
     print(ac.get_light())
     print(ac.get_zones())
@@ -158,11 +164,16 @@ EXAMPLE_COMMANDS = {
 
 
 def example_command(client, cmd, args):
-    func = EXAMPLE_COMMANDS[cmd]
+    func = EXAMPLE_COMMANDS.get(cmd)
+    if not func:
+        print("Invalid command: '{}'.\n"
+              "Use one of: {}".format(cmd, ', '.join(EXAMPLE_COMMANDS)),
+              file=sys.stderr)
+        return
     func(client, *args)
 
 
-def example(country, language, cmd, args):
+def example(country: str, language: str, cmd: str, args: List[str]) -> None:
     # Load the current state for the example.
     try:
         with open(STATE_FILE) as f:
@@ -200,29 +211,41 @@ def example(country, language, cmd, args):
         json.dump(state, f)
 
 
-def main():
+def main() -> None:
     """The main command-line entry point.
     """
     parser = argparse.ArgumentParser(
         description='Interact with the LG SmartThinQ API.'
     )
     parser.add_argument('cmd', metavar='CMD', nargs='?', default='ls',
-                        help='one of {}'.format(', '.join(EXAMPLE_COMMANDS)))
+                        help=f'one of: {", ".join(EXAMPLE_COMMANDS)}')
     parser.add_argument('args', metavar='ARGS', nargs='*',
                         help='subcommand arguments')
 
     parser.add_argument(
         '--country', '-c',
-        help='country code for account (default: {})'
-        .format(wideq.DEFAULT_COUNTRY)
+        help=f'country code for account (default: {wideq.DEFAULT_COUNTRY})',
+        default=wideq.DEFAULT_COUNTRY
     )
     parser.add_argument(
         '--language', '-l',
-        help='language code for the API (default: {})'
-        .format(wideq.DEFAULT_LANGUAGE)
+        help=f'language code for the API (default: {wideq.DEFAULT_LANGUAGE})',
+        default=wideq.DEFAULT_LANGUAGE
     )
-
     args = parser.parse_args()
+    country_regex = re.compile(r"^[A-Z]{2,3}$")
+    if not country_regex.match(args.country):
+        print("Error: Country must be two or three letters"
+              f" all upper case (e.g. US, NO, KR) got: '{args.country}'",
+              file=sys.stderr)
+        exit(1)
+    language_regex = re.compile(r"^[a-z]{2,3}-[A-Z]{2,3}$")
+    if not language_regex.match(args.language):
+        print("Error: Language must be a combination of language"
+              " and country (e.g. en-US, no-NO, kr-KR)"
+              f" got: '{args.language}'",
+              file=sys.stderr)
+        exit(1)
     example(args.country, args.language, args.cmd, args.args)
 
 
