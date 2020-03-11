@@ -13,6 +13,7 @@ from . import core
 
 #: Represents an unknown enum value.
 _UNKNOWN = 'Unknown'
+LOGGER = logging.getLogger("wideq.client")
 
 
 class Monitor(object):
@@ -292,6 +293,7 @@ RangeValue = namedtuple('RangeValue', ['min', 'max', 'step'])
 #: This is a value that is a reference to another key in the data that is at
 #: the same level as the `Value` key.
 ReferenceValue = namedtuple('ReferenceValue', ['reference'])
+StringValue = namedtuple('StringValue', ['comment'])
 
 
 class ModelInfo(object):
@@ -306,7 +308,7 @@ class ModelInfo(object):
 
         :param name: The name to look up.
         :returns: One of (`BitValue`, `EnumValue`, `RangeValue`,
-            `ReferenceValue`).
+            `ReferenceValue`, `StringValue`).
         :raises ValueError: If an unsupported type is encountered.
         """
         d = self.data['Value'][name]
@@ -323,6 +325,8 @@ class ModelInfo(object):
         elif d['type'].lower() == 'reference':
             ref = d['option'][0]
             return ReferenceValue(self.data[ref])
+        elif d['type'].lower() == 'string':
+            return StringValue(d.get('_comment', ''))
         else:
             raise ValueError(
                 f"unsupported value name: '{name}'"
@@ -345,7 +349,7 @@ class ModelInfo(object):
         """
         options = self.value(key).options
         if value not in options:
-            logging.warning(
+            LOGGER.warning(
                 'Value `%s` for key `%s` not in options: %s. Values from API: '
                 '%s', value, key, options, self.data['Value'][key]['option'])
             return _UNKNOWN
